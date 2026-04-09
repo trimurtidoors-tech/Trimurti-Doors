@@ -127,7 +127,7 @@ else:
                 for e in st.session_state.all_entries:
                     data_to_save.append({
                         "Date": str(date.today()), "User": st.session_state.current_user,
-                        "Customer": cust_name, "Mobile": f"'{mobile}", "Address": address,
+                        "Customer": cust_name, "Mobile": ['mobile'], "Address": e['address'],
                         "Series": e['Series'], "Design": e['Design'], "Color": e['Color'],
                         "H": e['H'], "W1": e['W1'], "W2": e['W2'], "Qty": e['Qty'],
                         "SqFt": e['SqFt'], "Rate": e['Rate'], "Total_Value": e['Total'], "Final_Bill": total
