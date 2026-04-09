@@ -29,7 +29,7 @@ def save_rates(rates):
 
 
 # ३. युजर मॅनेजमेंट
-USERS = {"Dhananjay": "Trimurti@2026", "Admin": "Admin@123"}
+USERS = {"Dhananjay": "Trimurti@2026", "Admin": "Admin@123", "Abhijeet": "123", "Yash": "123"}
 
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
