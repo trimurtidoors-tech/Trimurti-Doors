@@ -36,7 +36,7 @@ def save_rates(rates):
 
 # ४. युजर लॉगिन (Security)
 # युजर्सची माहिती फाईल मधून किंवा इथून घेतली जाते
-USERS = {"Dhananjay": "Trimurti@2026", "Admin": "Admin@123"}
+USERS = {"Dhananjay": "Trimurti@2026", "Admin": "Admin@123", "Abhijeet_Choudhari": "123", "Yash_Choudhari": "123"}
 
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
