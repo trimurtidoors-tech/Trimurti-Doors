@@ -1,6 +1,6 @@
 # ==========================================
 # PROJECT: TRIMURTI DOORS BILLING SYSTEM
-# VERSION: 2.2 (Final Mobile & Address Fix)
+# VERSION: 2.3 (Append Data Fix - No Data Loss)
 # ==========================================
 
 import streamlit as st
@@ -35,8 +35,7 @@ def save_rates(rates):
         json.dump(rates, f)
 
 # ४. युजर लॉगिन (Security)
-# युजर्सची माहिती फाईल मधून किंवा इथून घेतली जाते
-USERS = {"Dhananjay": "Trimurti@2026", "Admin": "Admin@123", "Abhijeet_Choudhari": "123", "Yash_Choudhari": "123"}
+USERS = {"Dhananjay": "Trimurti@2026", "Admin": "Admin@123"}
 
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
@@ -126,7 +125,7 @@ else:
 
         # १०. सेव्ह आणि पीडीएफ जनरेशन
         if st.button("🚀 FINALIZE, SAVE & DOWNLOAD"):
-            # १०-अ: गुगल शीट सिंक (Force Sync Mobile & Address)
+            # १०-अ: गुगल शीट सिंक (Append Mode - No Overwrite)
             try:
                 new_rows = []
                 for entry in st.session_state.all_entries:
@@ -142,11 +141,12 @@ else:
                         "Total_Value": entry['Total'], "Final_Bill": grand_total
                     })
                 
-                # जुना डेटा वाचून त्यात नवीन माहिती जोडणे
-                current_df = conn.read()
-                df_to_save = pd.concat([current_df, pd.DataFrame(new_rows)], ignore_index=True)
-                conn.update(data=df_to_save)
-                st.success("Data Saved to Google Sheet with Mobile & Address!")
+                # नवीन डेटा डेटाफ्रेम बनवणे
+                df_to_append = pd.DataFrame(new_rows)
+                
+                # .create() मुळे जुना डेटा राहतो आणि नवीन खाली जोडला जातो
+                conn.create(data=df_to_append)
+                st.success("Data successfully added to Google Sheet!")
             except Exception as e:
                 st.error(f"Google Sheet Sync Error: {e}")
 
