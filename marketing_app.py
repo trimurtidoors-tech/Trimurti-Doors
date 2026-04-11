@@ -1,94 +1,80 @@
 import streamlit as st
-from streamlit_gsheets import GSheetsConnection
 import pandas as pd
-from datetime import datetime
-from streamlit_js_eval import get_geolocation
+from datetime import datetime, timedelta
 
-# १. पेज सेटअप
-st.set_page_config(page_title="Trimurti Marketing Master", layout="wide")
+# 1. Page Setup
+st.set_page_config(page_title="Trimurti Marketing Follow-up", layout="wide")
 
-# २. गुगल शीट कनेक्शन (PEM Error टाळण्यासाठी सुधारित पद्धत)
-def connect_gsheet():
-    try:
-        # Secrets वाचणे
-        creds = dict(st.secrets["connections"]["gsheets"])
-        # की मधील तांत्रिक त्रुटी दुरुस्त करणे
-        if "private_key" in creds:
-            creds["private_key"] = creds["private_key"].replace("\\n", "\n")
-        
-        return st.connection("gsheets", type=GSheetsConnection, credentials=creds)
-    except Exception as e:
-        st.error(f"कन्फिगरेशन एरर: {e}")
-        st.stop()
+# 2. Styling (Visual Alert sathi)
+st.markdown("""
+    <style>
+    .followup-alert { color: white; background-color: #FF4B4B; padding: 10px; border-radius: 5px; }
+    </style>
+""", unsafe_allow_html=True)
 
-conn = connect_gsheet()
+# 3. Sidebar - File Upload
+st.sidebar.header("Data Management")
+uploaded_file = st.sidebar.file_uploader("Executive chi CSV file upload kara", type="csv")
 
-# ३. लॉगिन सिस्टिम
-AGENTS = {"Dhananjay": "789", "Jitesh": "101"}
-AGENT_FULL_NAMES = {"Dhananjay": "Dhananjay Pakhre", "Jitesh": "Jitesh Krishnan"}
+# Session state madhye data save karne
+if 'marketing_data' not in st.session_state:
+    st.session_state.marketing_data = pd.DataFrame(columns=[
+        "Date", "Customer Name", "Category", "Mobile Number", "Address", "Building Status", "Follow-up Status", "Next Date"
+    ])
 
-if 'marketing_logged_in' not in st.session_state:
-    st.session_state.marketing_logged_in = False
+# File upload jhali ki data process karne
+if uploaded_file is not None:
+    df = pd.read_csv(uploaded_file)
+    # File madhale columns map karne
+    temp_df = pd.DataFrame({
+        "Date": df.get('Date', datetime.now().strftime("%Y-%m-%d")),
+        "Customer Name": df.get('Contact Person Name', 'N/A'),
+        "Category": df.get('Person Status', 'N/A'),
+        "Mobile Number": df.get('Contact No', 'N/A'),
+        "Address": df.get('Address', 'N/A'),
+        "Building Status": df.get('In Progress', 'N/A'),
+        "Follow-up Status": "Pending",
+        "Next Date": datetime.now().date()
+    })
+    st.session_state.marketing_data = temp_df
+    st.success("Data Upload Jhala!")
 
-if not st.session_state.marketing_logged_in:
-    st.markdown("### 🔐 Agent Login")
-    u_id = st.text_input("Agent ID")
-    u_pw = st.text_input("Password", type="password")
-    if st.button("Login"):
-        if u_id in AGENTS and u_pw == AGENTS[u_id]:
-            st.session_state.marketing_logged_in = True
-            st.session_state.agent_display_name = AGENT_FULL_NAMES[u_id]
-            st.rerun()
-        else:
-            st.error("चुकीचा पासवर्ड!")
-else:
-    st.sidebar.success(f"एजंट: {st.session_state.agent_display_name}")
-    loc = get_geolocation()
-    
-    tab1, tab2 = st.tabs(["➕ नवीन नोंद (Submit)", "📊 माझा रिपोर्ट (Reports)"])
+# 4. Main App Interface
+st.title("📞 Trimurti Follow-up Tracker")
 
-    # --- TAB 1: ॲपमध्येच डेटा भरणे ---
-    with tab1:
-        with st.form("visit_form", clear_on_submit=True):
-            st.subheader("व्हिजिटची माहिती भरा")
-            c_name = st.text_input("Customer Name")
-            c_mob = st.text_input("Mobile No.")
-            c_addr = st.text_area("Address")
-            purpose = st.selectbox("Purpose", ["Inquiry", "Follow-up", "Order"])
-            submit = st.form_submit_button("डेटा सेव्ह करा")
-            
-            if submit:
-                # लोकेशन लिंक
-                map_link = "-"
-                if loc and 'coords' in loc:
-                    lat, lon = loc['coords'].get('latitude'), loc['coords'].get('longitude')
-                    map_link = f"https://www.google.com/maps?q={lat},{lon}"
-                
-                new_row = pd.DataFrame([{
-                    "Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    "Agent": st.session_state.agent_display_name,
-                    "Customer": c_name, "Mobile": f"'{c_mob}", "Address": c_addr,
-                    "Purpose": purpose, "Location": map_link
-                }])
-                
-                try:
-                    existing_df = conn.read(ttl=0)
-                    updated_df = pd.concat([existing_df, new_row], ignore_index=True)
-                    conn.update(data=updated_df)
-                    st.success("✅ डेटा यशस्वीरित्या मार्केटिंग शीटमध्ये सेव्ह झाला!")
-                    st.balloons()
-                except Exception as e:
-                    st.error(f"Error: {e}")
+# Notification Section (Alert)
+today = datetime.now().date()
+upcoming = st.session_state.marketing_data[st.session_state.marketing_data['Next Date'] <= today]
 
-    # --- TAB 2: रिपोर्ट पाहणे ---
-    with tab2:
-        try:
-            full_df = conn.read(ttl=0)
-            my_data = full_df[full_df['Agent'] == st.session_state.agent_display_name]
-            st.dataframe(my_data, use_container_width=True, hide_index=True)
-        except:
-            st.info("डेटा उपलब्ध नाही.")
+if not upcoming.empty:
+    st.markdown(f'<div class="followup-alert">🔔 Lakshya dya! Aaj tuche {len(upcoming)} Follow-ups baki ahet!</div>', unsafe_allow_html=True)
+    st.dataframe(upcoming[["Customer Name", "Mobile Number", "Next Date"]])
 
-    if st.sidebar.button("Logout"):
-        st.session_state.marketing_logged_in = False
-        st.rerun()
+st.divider()
+
+# 5. Data Editor (Status Update sathi)
+st.subheader("📋 Sarv Data (Update Status Here)")
+edited_df = st.data_editor(
+    st.session_state.marketing_data,
+    column_config={
+        "Follow-up Status": st.column_config.SelectboxColumn(
+            "Call Status",
+            options=["Pending", "Called - Busy", "Follow-up Set", "Interested", "Closed"],
+            required=True,
+        ),
+        "Next Date": st.column_config.DateColumn("Next Follow-up Date")
+    },
+    hide_index=True,
+    use_container_width=True
+)
+
+if st.button("💾 Changes Save Kara"):
+    st.session_state.marketing_data = edited_df
+    st.success("Status ani Dates Update jhalya!")
+
+# 6. Filters
+st.sidebar.divider()
+st.sidebar.subheader("Filters")
+selected_cat = st.sidebar.multiselect("Category Nivada", options=st.session_state.marketing_data['Category'].unique())
+if selected_cat:
+    st.session_state.marketing_data = st.session_state.marketing_data[st.session_state.marketing_data['Category'].isin(selected_cat)]
