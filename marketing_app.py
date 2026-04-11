@@ -1,103 +1,102 @@
 import streamlit as st
-from streamlit_gsheets import GSheetsConnection
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 
-# 1. Page Setup
-st.set_page_config(page_title="Trimurti Field Marketing", layout="wide")
+# १. पेज सेटअप
+st.set_page_config(page_title="Trimurti Smart Follow-up", layout="wide")
 
-# 2. Google Sheets Connection
-# Tula 'connections.gsheets' secrets madhye asne garjeche ahe
-try:
-    conn = st.connection("gsheets", type=GSheetsConnection)
-except Exception as e:
-    st.error(f"Connection Error: {e}")
-    st.stop()
-
-# 3. Agent Login
+# २. एजंट लॉगिन माहिती
 AGENTS = {"Dhananjay": "789", "Jitesh": "101"}
-AGENT_FULL_NAMES = {"Dhananjay": "Dhananjay Pakhre", "Jitesh": "Jitesh Krishnan"}
-
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
 
 if not st.session_state.logged_in:
-    st.title("🔐 Field Agent Login")
-    u_id = st.text_input("Agent ID")
-    u_pw = st.text_input("Password", type="password")
+    st.title("🔐 Agent Login")
+    user = st.text_input("ID")
+    pw = st.text_input("Password", type="password")
     if st.button("Login"):
-        if u_id in AGENTS and u_pw == AGENTS[u_id]:
+        if user in AGENTS and pw == AGENTS[user]:
             st.session_state.logged_in = True
-            st.session_state.agent_name = AGENT_FULL_NAMES[u_id]
             st.rerun()
         else:
-            st.error("Invalid Credentials")
+            st.error("चुकीचा पासवर्ड!")
 else:
-    st.sidebar.success(f"Welcome, {st.session_state.agent_name}")
+    st.title("📞 Trimurti Marketing & Follow-up")
     
-    tab1, tab2 = st.tabs(["📝 New Entry", "📂 Upload Executive File"])
+    # ३. फाईल अपलोडर (Excel - xlsx सपोर्ट)
+    st.sidebar.header("Data Upload")
+    uploaded_file = st.sidebar.file_uploader("एक्झिक्युटिव्हची Excel फाईल निवडा", type=["xlsx", "xls"])
 
-    # --- TAB 1: Manual Entry ---
-    with tab1:
-        with st.form("marketing_form", clear_on_submit=True):
-            st.subheader("Add Field Visit Details")
-            c_name = st.text_input("Customer Name")
-            c_cat = st.selectbox("Category", ["Owner", "Contractor", "Builder", "Architect"])
-            c_mob = st.text_input("Mobile Number")
-            c_addr = st.text_area("Address")
-            b_status = st.text_input("Building Status (e.g. Flooring Start)")
+    if uploaded_file:
+        try:
+            # Excel वाचणे
+            df_raw = pd.read_excel(uploaded_file)
             
-            submit = st.form_submit_button("Save to Sheet")
-            
-            if submit:
-                new_data = pd.DataFrame([{
-                    "Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    "Agent": st.session_state.agent_name,
-                    "Customer Name": c_name,
-                    "Category": c_cat,
-                    "Mobile Number": f"'{c_mob}",
-                    "Address": c_addr,
-                    "Building Status": b_status
-                }])
-                try:
-                    existing_df = conn.read(ttl=0)
-                    updated_df = pd.concat([existing_df, new_data], ignore_index=True)
-                    conn.update(data=updated_df)
-                    st.success("✅ Data saved to Google Sheet!")
-                except Exception as e:
-                    st.error(f"Error saving data: {e}")
+            # तुझ्या म्हणण्यानुसार डेटाची मांडणी (Sequence):
+            # Name -> Category -> Mobile -> Building Status -> Address -> Executive Remark
+            df_display = pd.DataFrame({
+                "Customer Name": df_raw.get('Contact Person Name', 'N/A'),
+                "Category": df_raw.get('Person Status', 'N/A'),
+                "Mobile": df_raw.get('Contact No', 'N/A'),
+                "Building Status": df_raw.get('In Progress', 'N/A'),
+                "Address": df_raw.get('Address', 'N/A'),
+                "Executive Remark": df_raw.get('Remark', 'N/A'),
+                "Follow-up Status": "Pending", 
+                "Next Call Date": (datetime.now().date()) # आजची तारीख डिफॉल्ट
+            })
 
-    # --- TAB 2: Upload Excel ---
-    with tab2:
-        st.subheader("Upload Executive's Excel Report")
-        uploaded_file = st.file_uploader("Choose Excel File", type=["xlsx", "xls"])
-        
-        if uploaded_file:
-            try:
-                # Excel vachnyasathi 'openpyxl' lagel (requirements.txt madhye taka)
-                df_raw = pd.read_excel(uploaded_file)
+            # ४. टॅब सिस्टिम (कामाचे नियोजन)
+            tab1, tab2 = st.tabs(["🎯 आजचे कॉल्स (Today's Tasks)", "📋 सर्व डेटा (Full Report)"])
+
+            with tab1:
+                today = datetime.now().date()
+                # ज्यांची 'Next Call Date' आजची आहे असे लोक
+                calls_today = df_display[df_display['Next Call Date'] <= today]
                 
-                # Column mapping tuzya file pramane
-                df_final = pd.DataFrame({
-                    "Date": df_raw.get('Date', datetime.now().strftime("%Y-%m-%d")),
-                    "Agent": st.session_state.agent_name,
-                    "Customer Name": df_raw.get('Contact Person Name', 'N/A'),
-                    "Category": df_raw.get('Person Status', 'N/A'),
-                    "Mobile Number": df_raw.get('Contact No', 'N/A'),
-                    "Address": df_raw.get('Address', 'N/A'),
-                    "Building Status": df_raw.get('In Progress', 'N/A')
-                })
+                if not calls_today.empty:
+                    st.warning(f"🚨 आज तुम्हाला {len(calls_today)} क्लायंट्सना फॉलो-अप द्यायचा आहे!")
+                    st.data_editor(
+                        calls_today[["Customer Name", "Category", "Mobile", "Follow-up Status", "Next Call Date"]], 
+                        use_container_width=True, 
+                        hide_index=True
+                    )
+                else:
+                    st.success("✅ आजसाठी कोणतेही प्रलंबित कॉल्स नाहीत!")
+
+            with tab2:
+                st.subheader("संपूर्ण व्हिजिट रिपोर्ट आणि अपडेट्स")
+                # इथे तू सगळा डेटा एडिट करू शकतोस
+                updated_df = st.data_editor(
+                    df_display,
+                    column_config={
+                        "Follow-up Status": st.column_config.SelectboxColumn(
+                            "My Action",
+                            options=["Pending", "Called - Interested", "Call in 15 Days", "Call in 1 Month", "Meeting Set", "Closed"],
+                            required=True
+                        ),
+                        "Next Call Date": st.column_config.DateColumn("Next Follow-up")
+                    },
+                    hide_index=True,
+                    use_container_width=True
+                )
                 
-                st.write("Preview of Data:")
-                st.dataframe(df_final, use_container_width=True)
-                
-                if st.button("Confirm & Upload to Sheet"):
-                    existing_df = conn.read(ttl=0)
-                    updated_df = pd.concat([existing_df, df_final], ignore_index=True)
-                    conn.update(data=updated_df)
-                    st.success(f"✅ {len(df_final)} entries uploaded successfully!")
-            except Exception as e:
-                st.error(f"File processing error: {e}")
+                # ५. सेव्ह करण्याचा पर्याय (CSV Download)
+                st.divider()
+                if st.button("💾 बदल सेव्ह करा"):
+                    csv = updated_df.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        label="📥 अपडेटेड रिपोर्ट डाउनलोड करा",
+                        data=csv,
+                        file_name=f"Marketing_Update_{datetime.now().strftime('%d_%b')}.csv",
+                        mime="text/csv",
+                    )
+                    st.success("बदल तयार आहेत, कृपया वरील बटण दाबून फाईल सेव्ह करा.")
+
+        except Exception as e:
+            st.error(f"Error: {e}")
+            st.info("टीप: तुम्ही requirements.txt मध्ये 'openpyxl' टाकले असल्याची खात्री करा.")
+    else:
+        st.info("👈 कृपया बाजूच्या मेनूमधून एक्झिक्युटिव्हची Excel फाईल अपलोड करा.")
 
     if st.sidebar.button("Logout"):
         st.session_state.logged_in = False
