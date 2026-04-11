@@ -1,8 +1,3 @@
-# ==========================================
-# PROJECT: TRIMURTI DOORS BILLING SYSTEM
-# VERSION: 2.4 (Ultimate Data Sync Fix)
-# ==========================================
-
 import streamlit as st
 from fpdf import FPDF
 from datetime import date
@@ -20,11 +15,7 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 # ३. दरांचे व्यवस्थापन
 RATES_FILE = "rates_data.json"
 def load_rates():
-    default_rates = {
-        "FT": 720, "Deco": 685, "PD": 585, "Delux": 385, 
-        "Diamond": 315, "Classic": 285, "Silver": 240, 
-        "FRP": 185, "Ls": 240, "T": 160, "Eg": 630
-    }
+    default_rates = {"FT": 720, "Deco": 685, "PD": 585, "Delux": 385, "Diamond": 315, "Classic": 285, "Silver": 240, "FRP": 185, "Ls": 240, "T": 160, "Eg": 630}
     if os.path.exists(RATES_FILE):
         with open(RATES_FILE, "r") as f: return json.load(f)
     return default_rates
@@ -32,7 +23,7 @@ def load_rates():
 def save_rates(rates):
     with open(RATES_FILE, "w") as f: json.dump(rates, f)
 
-# ४. युजर लॉगिन (Security)
+# ४. युजर लॉगिन
 USERS = {"Dhananjay": "Trimurti@2026", "Admin": "Admin@123"}
 
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
@@ -50,7 +41,7 @@ if not st.session_state.logged_in:
             st.rerun()
         else: st.error("Invalid Login!")
 else:
-    st.markdown(f"<div style='background-color:#004aad;padding:10px;color:white;text-align:center;'><h1>TRIMURTI DOORS WORLD</h1></div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='background-color:#004aad;padding:10px;color:white;text-align:center;border-radius:10px;'><h1>TRIMURTI DOORS WORLD</h1></div>", unsafe_allow_html=True)
 
     # ५. एडमिन सेटिंग्स
     if st.session_state.current_user == "Dhananjay":
@@ -108,8 +99,11 @@ else:
 
         # १०. सेव्ह आणि पीडीएफ
         if st.button("🚀 SAVE & DOWNLOAD"):
-            # १०-अ: गुगल शीट सिंक (नवा सुरक्षित मार्ग)
             try:
+                # ताज्या माहितीसाठी ttl=0 वापरला आहे
+                try: df_existing = conn.read(ttl=0)
+                except: df_existing = pd.DataFrame()
+
                 new_data = []
                 for e in st.session_state.all_entries:
                     new_data.append({
@@ -120,27 +114,19 @@ else:
                         "SqFt": e['SqFt'], "Rate": e['Rate'], "Total_Value": e['Total'], "Final_Bill": grand
                     })
                 
-                # १. जुना डेटा वाचणे
-                try:
-                    df_existing = conn.read()
-                except:
-                    df_existing = pd.DataFrame()
-
-                # २. जुन्यात नवीन डेटा जोडणे
                 df_updated = pd.concat([df_existing, pd.DataFrame(new_data)], ignore_index=True)
-                
-                # ३. पूर्ण डेटा शीटमध्ये अपडेट करणे
-                conn.update(data=df_updated)
-                st.success("Data Saved to Sheet!")
+                conn.update(data=df_updated) # पूर्ण अपडेटेड डेटा सेव्ह करणे
+                st.success("Data successfully synced!")
+                st.session_state.all_entries = [] # यादी रिकामी करणे जेणेकरून ओव्हरलोड होणार नाही
             except Exception as e: st.error(f"Error: {e}")
 
-            # १०-ब: पीडीएफ (Short Code)
+            # पीडीएफ जनरेशन
             pdf = FPDF(); pdf.add_page(); pdf.set_font("Arial", 'B', 14)
             pdf.cell(190, 10, "TRIMURTI DOORS WORLD", 0, 1, 'C')
             pdf.set_font("Arial", '', 10); pdf.cell(190, 7, f"Customer: {cust_name} | Date: {date.today()}", 0, 1)
             pdf.cell(190, 7, f"Mobile: {mobile} | Address: {address}", 0, 1); pdf.ln(5)
             
-            # टेबल
+            # टेबल हेडर
             pdf.set_font("Arial", 'B', 8); h = ["Sr", "Series", "Qty", "SqFt", "Rate", "Total"]
             w = [10, 30, 20, 30, 30, 70]
             for i in range(len(h)): pdf.cell(w[i], 10, h[i], 1, 0, 'C')
