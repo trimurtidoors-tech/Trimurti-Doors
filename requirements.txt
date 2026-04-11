@@ -1,3 +1,4 @@
 streamlit
 fpdf
 st-gsheets-connection
+streamlit-js-eval
