@@ -2,85 +2,73 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, date
 import gspread
-from google.oauth2.service_account import Credentials
 
 # १. पेज सेटअप
 st.set_page_config(page_title="Trimurti Smart Follow-up", layout="wide")
 
-# २. गुगल शीट कनेक्शन (PEM Error सुरक्षित पद्धत)
-@st.cache_resource
-def get_gsheet_client():
-    try:
-        info = dict(st.secrets["connections"]["gsheets"])
-        # \n ची दुरुस्ती
-        info["private_key"] = info["private_key"].replace("\\n", "\n")
-        scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-        creds = Credentials.from_service_account_info(info, scopes=scopes)
-        return gspread.authorize(creds)
-    except Exception as e:
-        st.error(f"कन्फिगरेशन एरर: {e}")
-        return None
-
+# २. गुगल शीट माहिती
 SHEET_ID = "1hMy9ETB_wfGGLEE3F6JF1t1AJLOHtR4Gqs_apiJkFss"
 
-# ३. मुख्य ॲप लॉजिक
-st.title("📞 Trimurti Marketing Assistant")
+# ३. लॉगिन सिस्टिम
+AGENTS = {"Dhananjay": "789", "Jitesh": "101"}
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
 
-client = get_gsheet_client()
-
-if client:
-    try:
-        sheet = client.open_by_key(SHEET_ID).sheet1
-        existing_data = sheet.get_all_records()
-        df = pd.DataFrame(existing_data)
-        
-        # जर शीटमध्ये डेटा नसेल, तर अपलोडचा पर्याय दाखवा
-        if df.empty:
-            st.warning("⚠️ तुमच्या गुगल शीटमध्ये सध्या कोणताही डेटा नाही.")
-            uploaded_file = st.file_uploader("एक्झिक्युटिव्हची '10 April' वाली Excel फाईल अपलोड करा", type=["xlsx"])
-            
-            if uploaded_file and st.button("शीटमध्ये डेटा पाठवा (One-Time Setup)"):
-                df_raw = pd.read_excel(uploaded_file)
-                # आपल्याला हवे तसे कॉलम्स तयार करणे
-                df_final = pd.DataFrame({
-                    "Date": df_raw.get('Date', datetime.now().strftime("%Y-%m-%d")),
-                    "Customer Name": df_raw.get('Contact Person Name', 'N/A'),
-                    "Category": df_raw.get('Person Status', 'N/A'),
-                    "Mobile Number": df_raw.get('Contact No', 'N/A'),
-                    "Address": df_raw.get('Address', 'N/A'),
-                    "Building Status": df_raw.get('In Progress', 'N/A'),
-                    "Status": "Pending",
-                    "Next Date": datetime.now().strftime("%Y-%m-%d") # आजची तारीख
-                })
-                # शीटमध्ये डेटा लिहिणे
-                sheet.update([df_final.columns.values.tolist()] + df_final.astype(str).values.tolist())
-                st.success("✅ अभिनंदन! डेटा गुगल शीटमध्ये सेव्ह झाला आहे. आता ॲप पुन्हा लोड करा.")
-                st.balloons()
-        
+if not st.session_state.logged_in:
+    st.title("🔐 Agent Login")
+    u_id = st.text_input("ID")
+    u_pw = st.text_input("Password", type="password")
+    if st.button("Login"):
+        if u_id in AGENTS and u_pw == AGENTS[u_id]:
+            st.session_state.logged_in = True
+            st.rerun()
         else:
-            # --- मुख्य फॉलो-अप सिस्टिम ---
-            today = date.today()
+            st.error("चुकीचा पासवर्ड!")
+else:
+    st.title("📞 Trimurti Smart Follow-up")
+    
+    # ४. डेटा वाचणे (Public Link द्वारे - No PEM Error)
+    DATA_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv"
+    
+    try:
+        df = pd.read_csv(DATA_URL)
+        
+        # आजचे रिमाइंडर्स
+        today = date.today()
+        if 'Next Date' in df.columns:
             df['Next Date'] = pd.to_datetime(df['Next Date']).dt.date
-            
-            # रिमांडर
             overdue = df[df['Next Date'] <= today]
+            
             if not overdue.empty:
                 st.error(f"🚨 **आजचे फॉलो-अप्स ({len(overdue)}):**")
-                st.dataframe(overdue[["Customer Name", "Mobile Number", "Next Date"]], use_container_width=True, hide_index=True)
+                st.dataframe(overdue[["Contact Person Name", "Contact No", "Next Date"]], use_container_width=True, hide_index=True)
+            else:
+                st.success("✅ आज कोणतेही प्रलंबित कॉल्स नाहीत.")
 
-            st.subheader("📋 फॉलो-अप अपडेट करा")
-            edited_df = st.data_editor(
-                df,
-                column_config={
-                    "Status": st.column_config.SelectboxColumn("Action", options=["Pending", "Called", "Interested", "Closed"]),
-                    "Next Date": st.column_config.DateColumn("पुढची तारीख")
-                },
-                use_container_width=True, hide_index=True
-            )
+        st.divider()
 
-            if st.button("💾 बदल सेव्ह करा"):
-                sheet.update([edited_df.columns.values.tolist()] + edited_df.astype(str).values.tolist())
-                st.success("✅ बदल यशस्वीरित्या सेव्ह झाले!")
+        # ५. मुख्य विभाग
+        tab1, tab2 = st.tabs(["📋 फॉलो-अप लिस्ट", "📂 नवीन डेटा जोडा"])
+
+        with tab1:
+            st.subheader("मार्केटिंग डेटा")
+            st.dataframe(df, use_container_width=True)
+            st.info("💡 टीप: डेटा अपडेट करण्यासाठी खालील बटण दाबून थेट शीटमध्ये बदल करा.")
+            st.link_button("🚀 गुगल शीटमध्ये तारीख अपडेट करा", f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/edit")
+
+        with tab2:
+            st.subheader("एक्झिक्युटिव्हची फाईल अपलोड करा")
+            uploaded_file = st.file_uploader("Excel फाईल निवडा", type=["xlsx"])
+            if uploaded_file:
+                df_new = pd.read_excel(uploaded_file)
+                st.write("डेटा प्रीव्ह्यू:")
+                st.dataframe(df_new.head())
+                st.warning("हा डेटा शीटमध्ये टाकण्यासाठी 'Copy' करून थेट गुगल शीटमध्ये पेस्ट करा.")
+                st.link_button("🚀 गुगल शीट उघडा", f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/edit")
 
     except Exception as e:
-        st.error(f"डेटा लोड करताना चूक झाली: {e}")
+        st.error(f"डेटा लोड करताना अडचण: {e}")
+
+    if st.sidebar.button("Logout"):
+        st.session_state.logged_in = False
+        st.rerun()
