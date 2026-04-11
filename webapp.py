@@ -23,7 +23,7 @@ def load_rates():
 def save_rates(rates):
     with open(RATES_FILE, "w") as f: json.dump(rates, f)
 
-# ४. युजर लॉगिन
+# ४. युजर लॉगिन (Security)
 USERS = {"Dhananjay": "Trimurti@2026", "Admin": "Admin@123"}
 
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
@@ -87,7 +87,7 @@ else:
             })
             st.rerun()
 
-    # ९. बिलिंग
+    # ९. बिलिंग टेबल
     if st.session_state.all_entries:
         st.table(st.session_state.all_entries)
         sub = sum(i['Total'] for i in st.session_state.all_entries)
@@ -98,9 +98,9 @@ else:
         st.subheader(f"Total: ₹ {grand:,.2f}")
 
         # १०. सेव्ह आणि पीडीएफ
-        if st.button("🚀 SAVE & DOWNLOAD"):
+        if st.button("🚀 SAVE DATA & GENERATE PDF"):
             try:
-                # ताज्या माहितीसाठी ttl=0 वापरला आहे
+                # गुगल शीट सिंक (Append Mode)
                 try: df_existing = conn.read(ttl=0)
                 except: df_existing = pd.DataFrame()
 
@@ -115,28 +115,38 @@ else:
                     })
                 
                 df_updated = pd.concat([df_existing, pd.DataFrame(new_data)], ignore_index=True)
-                conn.update(data=df_updated) # पूर्ण अपडेटेड डेटा सेव्ह करणे
-                st.success("Data successfully synced!")
-                st.session_state.all_entries = [] # यादी रिकामी करणे जेणेकरून ओव्हरलोड होणार नाही
-            except Exception as e: st.error(f"Error: {e}")
+                conn.update(data=df_updated)
+                st.success("Data Saved to Google Sheet!")
+            except Exception as e: st.error(f"Sheet Error: {e}")
 
-            # पीडीएफ जनरेशन
-            pdf = FPDF(); pdf.add_page(); pdf.set_font("Arial", 'B', 14)
+            # पीडीएफ तयार करणे (सर्व डिटेल्ससह)
+            pdf = FPDF(); pdf.add_page(); pdf.set_font("Arial", 'B', 16)
             pdf.cell(190, 10, "TRIMURTI DOORS WORLD", 0, 1, 'C')
-            pdf.set_font("Arial", '', 10); pdf.cell(190, 7, f"Customer: {cust_name} | Date: {date.today()}", 0, 1)
+            pdf.set_font("Arial", '', 10)
+            pdf.cell(190, 7, f"Customer: {cust_name} | Date: {date.today()}", 0, 1)
             pdf.cell(190, 7, f"Mobile: {mobile} | Address: {address}", 0, 1); pdf.ln(5)
             
-            # टेबल हेडर
-            pdf.set_font("Arial", 'B', 8); h = ["Sr", "Series", "Qty", "SqFt", "Rate", "Total"]
-            w = [10, 30, 20, 30, 30, 70]
-            for i in range(len(h)): pdf.cell(w[i], 10, h[i], 1, 0, 'C')
+            # टेबल हेडर (सर्व रकाने)
+            pdf.set_font("Arial", 'B', 8); pdf.set_fill_color(230, 230, 230)
+            h_list = ["Sr", "Series", "Design", "Color", "H", "W1", "W2", "Qty", "SqFt", "Rate", "Total"]
+            w_list = [8, 15, 25, 20, 12, 12, 12, 10, 15, 15, 34]
+            for idx, h in enumerate(h_list): pdf.cell(w_list[idx], 10, h, 1, 0, 'C', True)
             pdf.ln(); pdf.set_font("Arial", '', 8)
-            for idx, i in enumerate(st.session_state.all_entries):
-                pdf.cell(w[0], 8, str(idx+1), 1); pdf.cell(w[1], 8, i['Series'], 1)
-                pdf.cell(w[2], 8, str(i['Qty']), 1); pdf.cell(w[3], 8, str(i['SqFt']), 1)
-                pdf.cell(w[4], 8, str(i['Rate']), 1); pdf.cell(w[5], 8, str(i['Total']), 1, 1, 'R')
             
-            pdf.ln(5); pdf.set_font("Arial", 'B', 12); pdf.cell(190, 10, f"GRAND TOTAL: Rs. {grand:,.2f}", 0, 1, 'R')
-            st.download_button("📥 DOWNLOAD PDF", data=pdf.output(dest='S').encode('latin-1'), file_name=f"Trimurti_{cust_name}.pdf")
+            # टेबल डेटा (ही लूप महत्त्वाची आहे)
+            for idx, i in enumerate(st.session_state.all_entries):
+                pdf.cell(w_list[0], 8, str(idx+1), 1)
+                pdf.cell(w_list[1], 8, i['Series'], 1); pdf.cell(w_list[2], 8, i['Design'], 1)
+                pdf.cell(w_list[3], 8, i['Color'], 1); pdf.cell(w_list[4], 8, str(i['H']), 1)
+                pdf.cell(w_list[5], 8, str(i['W1']), 1); pdf.cell(w_list[6], 8, str(i['W2']), 1)
+                pdf.cell(w_list[7], 8, str(i['Qty']), 1); pdf.cell(w_list[8], 8, str(i['SqFt']), 1)
+                pdf.cell(w_list[9], 8, str(i['Rate']), 1); pdf.cell(w_list[10], 8, str(i['Total']), 1, 1, 'R')
+            
+            pdf.ln(5); pdf.set_font("Arial", 'B', 12)
+            pdf.cell(190, 10, f"GRAND TOTAL: Rs. {grand:,.2f}", 0, 1, 'R')
+            
+            pdf_out = pdf.output(dest='S').encode('latin-1')
+            st.download_button("📥 DOWNLOAD PDF", data=pdf_out, file_name=f"Trimurti_{cust_name}.pdf")
 
-    if st.button("Logout"): st.session_state.all_entries = []; st.session_state.logged_in = False; st.rerun()
+    if st.button("🚪 Logout"):
+        st.session_state.all_entries = []; st.session_state.logged_in = False; st.rerun()
