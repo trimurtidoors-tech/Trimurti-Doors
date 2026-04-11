@@ -7,32 +7,30 @@ from streamlit_js_eval import get_geolocation
 # १. पेज सेटअप
 st.set_page_config(page_title="Trimurti Marketing Master", layout="wide")
 
-# २. क्रेडेंशियल्सची डिक्शनरी तयार करणे (UnhashableParamError टाळण्यासाठी)
-@st.cache_data
-def get_creds():
-    return {
-        "type": st.secrets["type"],
-        "project_id": st.secrets["project_id"],
-        "private_key_id": st.secrets["private_key_id"],
-        "private_key": st.secrets["private_key"],
-        "client_email": st.secrets["client_email"],
-        "client_id": st.secrets["client_id"],
-        "auth_uri": st.secrets["auth_uri"],
-        "token_uri": st.secrets["token_uri"],
-        "auth_provider_x509_cert_url": st.secrets["auth_provider_x509_cert_url"],
-        "client_x509_cert_url": st.secrets["client_x509_cert_url"],
-    }
+# २. क्रेडेंशियल्स डिक्शनरी तयार करणे (TypeError टाळण्यासाठी)
+creds_dict = {
+    "type": st.secrets["type"],
+    "project_id": st.secrets["project_id"],
+    "private_key_id": st.secrets["private_key_id"],
+    "private_key": st.secrets["private_key"],
+    "client_email": st.secrets["client_email"],
+    "client_id": st.secrets["client_id"],
+    "auth_uri": st.secrets["auth_uri"],
+    "token_uri": st.secrets["token_uri"],
+    "auth_provider_x509_cert_url": st.secrets["auth_provider_x509_cert_url"],
+    "client_x509_cert_url": st.secrets["client_x509_cert_url"],
+}
 
-# ३. गुगल शीट कनेक्शन (Spreadsheet ID स्पष्टपणे देऊन)
-creds = get_creds()
+# ३. गुगल शीट कनेक्शन (थेट डिक्शनरी वापरून)
+# टीप: येथे आपण 'credentials' ला डिक्शनरी स्वरूपात देत आहोत
 conn = st.connection(
     "gsheets", 
     type=GSheetsConnection, 
-    credentials=creds, 
+    credentials=creds_dict, 
     spreadsheet=st.secrets["spreadsheet"]
 )
 
-# ४. युजर लॉगिन मॅपिंग
+# ४. लॉगिन मॅपिंग
 AGENTS = {"Dhananjay": "789", "Jitesh": "101"}
 AGENT_FULL_NAMES = {"Dhananjay": "Dhananjay Pakhre", "Jitesh": "Jitesh Krishnan"}
 
@@ -52,9 +50,11 @@ if not st.session_state.marketing_logged_in:
             st.error("चुकीचा आयडी किंवा पासवर्ड!")
 else:
     st.markdown(f"### नमस्ते, {st.session_state.agent_display_name}! 🙏")
+    
+    # लोकेशन मिळवणे
     loc = get_geolocation()
     
-    tab1, tab2 = st.tabs(["➕ नवीन नोंद (Create)", "🛠️ रेकॉर्ड्स मॅनेज करा (Update/Delete)"])
+    tab1, tab2 = st.tabs(["➕ नवीन भेट (Create)", "🛠️ रेकॉर्ड्स मॅनेज करा (Update/Delete)"])
 
     # --- CREATE ---
     with tab1:
@@ -81,14 +81,14 @@ else:
                         existing_df = conn.read(ttl=0)
                         updated_df = pd.concat([existing_df, new_entry], ignore_index=True)
                         conn.update(data=updated_df)
-                        st.success("✅ डेटा यशस्वीरित्या सेव्ह झाला!")
+                        st.success("✅ डेटा सेव्ह झाला!")
                         st.balloons()
                     except Exception as e:
                         st.error(f"Error: {e}")
                 else:
                     st.error("कृपया लोकेशन 'Allow' करा.")
 
-    # --- UPDATE / DELETE ---
+    # --- UPDATE/DELETE ---
     with tab2:
         try:
             full_df = conn.read(ttl=0)
@@ -100,10 +100,10 @@ else:
                         other_df = full_df[full_df['Agent'] != st.session_state.agent_display_name]
                         final_df = pd.concat([other_df, edited_df], ignore_index=True)
                         conn.update(data=final_df)
-                        st.success("✅ रेकॉर्ड्स अपडेट झाले!")
+                        st.success("✅ अपडेट झाले!")
                         st.rerun()
-                    except Exception as e: st.error(f"Update Error: {e}")
-            else: st.info("डेटा उपलब्ध नाही.")
+                    except Exception as e: st.error(f"Error: {e}")
+            else: st.info("डेटा नाही.")
         except: st.error("डेटा लोड झाला नाही.")
 
     if st.button("Logout"):
