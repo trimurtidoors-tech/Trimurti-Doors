@@ -7,17 +7,32 @@ from streamlit_js_eval import get_geolocation
 # १. पेज सेटअप
 st.set_page_config(page_title="Trimurti Marketing Master", layout="wide")
 
-# २. गुगल शीट कनेक्शन (सर्वात सोपी पद्धत)
-# टीप: स्ट्रीमलिट आपोआप Secrets मधील [connections.gsheets] शोधतो.
-# येथे 'credentials' किंवा 'service_account' लिहायची गरज नाही.
+# २. गुगल शीट कनेक्शन (PEM Error घालवण्यासाठी सुधारित पद्धत)
+@st.cache_resource
+def get_gsheets_conn():
+    # Secrets मधून क्रेडेंशियल्स डिक्शनरी स्वरूपात मिळवणे
+    creds = dict(st.secrets["connections"]["gsheets"])
+    
+    # की (Key) मधील तांत्रिक त्रुटी (Backslashes) नीट करणे
+    if "private_key" in creds:
+        creds["private_key"] = creds["private_key"].replace("\\n", "\n")
+    
+    # कनेक्शन तयार करणे
+    return st.connection(
+        "gsheets", 
+        type=GSheetsConnection, 
+        credentials=creds
+    )
+
+# कनेक्शन मिळवा
 try:
-    conn = st.connection("gsheets", type=GSheetsConnection)
+    conn = get_gsheets_conn()
 except Exception as e:
     st.error(f"कन्फिगरेशन एरर: {e}")
-    st.info("कृपया खात्री करा की Secrets मध्ये [connections.gsheets] हेडर आहे.")
+    st.info("कृपया खात्री करा की Secrets मध्ये [connections.gsheets] हेडर आणि पूर्ण क्रेडेंशियल्स आहेत.")
     st.stop()
 
-# ३. एजंट लिस्ट आणि लॉगिन
+# ३. लॉगिन आणि एजंट लिस्ट
 AGENTS = {"Dhananjay": "789", "Jitesh": "101"}
 AGENT_FULL_NAMES = {"Dhananjay": "Dhananjay Pakhre", "Jitesh": "Jitesh Krishnan"}
 
@@ -37,13 +52,16 @@ if not st.session_state.marketing_logged_in:
             st.error("चुकीचा आयडी किंवा पासवर्ड!")
 else:
     st.markdown(f"### नमस्ते, {st.session_state.agent_display_name}! 🙏")
+    
+    # लोकेशन मिळवणे
     loc = get_geolocation()
     
-    tab1, tab2 = st.tabs(["➕ नवीन नोंद", "🛠️ रेकॉर्ड्स मॅनेज करा"])
+    tab1, tab2 = st.tabs(["➕ नवीन नोंद (Create)", "🛠️ रेकॉर्ड्स मॅनेज करा (Update/Delete)"])
 
     # --- CREATE ---
     with tab1:
         with st.form("visit_form", clear_on_submit=True):
+            st.subheader("व्हिजिट डिटेल्स भरा")
             c_name = st.text_input("Customer Name")
             c_mob = st.text_input("Mobile No.")
             c_addr = st.text_area("Address")
@@ -67,8 +85,11 @@ else:
                         updated_df = pd.concat([existing_df, new_entry], ignore_index=True)
                         conn.update(data=updated_df)
                         st.success("✅ डेटा सेव्ह झाला!")
-                    except Exception as e: st.error(f"Error: {e}")
-                else: st.error("लोकेशन सापडले नाही.")
+                        st.balloons()
+                    except Exception as e:
+                        st.error(f"Error: {e}")
+                else:
+                    st.error("लोकेशन सापडले नाही. कृपया GPS सुरू करा.")
 
     # --- UPDATE ---
     with tab2:
@@ -83,8 +104,10 @@ else:
                     conn.update(data=final_df)
                     st.success("✅ अपडेट यशस्वी!")
                     st.rerun()
-            else: st.info("डेटा नाही.")
-        except: st.error("डेटा लोड झाला नाही.")
+            else:
+                st.info("डेटा नाही.")
+        except:
+            st.error("डेटा लोड झाला नाही.")
 
     if st.button("Logout"):
         st.session_state.marketing_logged_in = False
