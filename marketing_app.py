@@ -1,52 +1,55 @@
 import streamlit as st
-from streamlit_gsheets import GSheetsConnection
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, date
 
-# पेज सेटअप
-st.set_page_config(page_title="Trimurti Marketing", layout="wide")
+# १. पेज सेटअप
+st.set_page_config(page_title="Trimurti Marketing Assistant", layout="wide")
 
-st.title("📞 Marketing Follow-up")
+# २. तुमची शीट आयडी आणि पब्लिक लिंक
+SHEET_ID = "1hMy9ETB_wfGGLEE3F6JF1t1AJLOHtR4Gqs_apiJkFss"
+DATA_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv"
 
-# १. गुगल शीट कनेक्शन
+st.title("📞 Trimurti Marketing & Follow-up")
+
 try:
-    conn = st.connection("gsheets", type=GSheetsConnection)
-    df = conn.read(ttl=0) # लाइव्ह डेटा वाचणे
-except Exception as e:
-    st.error(f"शीट कनेक्ट झाली नाही: {e}")
-    st.stop()
-
-if not df.empty:
-    # २. डेटा फिल्टर करणे (आजचे कॉल्स)
-    today = datetime.now().strftime("%Y-%m-%d")
-    df['Next Date'] = df['Next Date'].astype(str)
+    # ३. डेटा वाचणे (क्रेडेंशियल्सशिवाय)
+    df = pd.read_csv(DATA_URL)
     
-    overdue = df[df['Next Date'] <= today]
-    if not overdue.empty:
-        st.error(f"🚨 आजचे फॉलो-अप्स: {len(overdue)}")
-        st.dataframe(overdue[["Customer Name", "Mobile Number", "Next Date"]], use_container_width=True)
+    # ४. आजचे फॉलो-अप रिमांडर्स
+    today = date.today()
+    if 'Next Date' in df.columns:
+        # तारखेचे फॉरमॅट नीट करणे
+        df['Next Date'] = pd.to_datetime(df['Next Date']).dt.date
+        overdue = df[df['Next Date'] <= today]
+        
+        if not overdue.empty:
+            st.error(f"🚨 **आजचे फॉलो-अप्स ({len(overdue)}):**")
+            st.dataframe(overdue[["Customer Name", "Mobile Number", "Next Date"]], use_container_width=True, hide_index=True)
+        else:
+            st.success("✅ आज कोणतेही प्रलंबित कॉल्स नाहीत.")
 
     st.divider()
 
-    # ३. स्टेटस आणि डेट अपडेट करण्यासाठी 'Editor'
-    st.subheader("📝 अपडेट करा")
-    updated_df = st.data_editor(
-        df,
-        column_config={
-            "Status": st.column_config.SelectboxColumn("Status", options=["Pending", "Called", "Interested", "Closed"]),
-            "Next Date": st.column_config.DateColumn("पुढचा कॉल")
-        },
-        use_container_width=True,
-        hide_index=True
-    )
+    # ५. व्ह्यू आणि अपडेट पर्याय
+    tab1, tab2 = st.tabs(["📊 रिपोर्ट पहा", "📝 डेटा अपडेट करा"])
 
-    # ४. सेव्ह बटण
-    if st.button("💾 गुगल शीटमध्ये सेव्ह करा"):
-        try:
-            conn.update(data=updated_df)
-            st.success("✅ डेटा गुगल शीटमध्ये अपडेट झाला!")
-            st.balloons()
-        except Exception as e:
-            st.error(f"सेव्ह करताना एरर: {e}")
-else:
-    st.info("शीटमध्ये डेटा नाही.")
+    with tab1:
+        st.subheader("मार्केटिंग डेटा लिस्ट")
+        st.dataframe(df, use_container_width=True, hide_index=True)
+
+    with tab2:
+        st.info("डेटा अपडेट करण्यासाठी किंवा पुढची तारीख सेट करण्यासाठी खालील बटण दाबा:")
+        # ही लिंक तुला थेट तुझ्या गुगल शीटवर नेईल जिथे तू मोबाईलवरूनही बदल करू शकतोस
+        st.link_button("🚀 थेट गुगल शीटमध्ये बदल करा", f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/edit")
+        st.write("---")
+        st.markdown("""
+        **कसे करावे?**
+        1. वरील बटण दाबून गुगल शीट उघडा.
+        2. तुम्हाला हव्या त्या क्लायंटचा 'Status' किंवा 'Next Date' तिथे बदला.
+        3. बदल आपोआप सेव्ह होतील. 
+        4. पुन्हा ॲपवर येऊन पेज रिफ्रेश करा, तुम्हाला नवीन माहिती दिसेल.
+        """)
+
+except Exception as e:
+    st.error(f"डेटा लोड करताना अडचण आली: {e}")
+    st.info("कृपया तुमची गुगल शीट 'Anyone with the link' (Editor) अशी शेअर केली आहे का ते तपासा.")
