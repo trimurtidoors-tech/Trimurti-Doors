@@ -24,7 +24,7 @@ def save_rates(rates):
     with open(RATES_FILE, "w") as f: json.dump(rates, f)
 
 # ४. युजर लॉगिन (Password: Dhananjay-789, Admin-123)
-USERS = {"Dhananjay": "789", "Admin": "123"}
+USERS = {"Dhananjay": "789", "Admin": "123", "Abhijeet": "123", "Krushna": "123", "Arbaz": "123", "user": "123"}
 
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'all_entries' not in st.session_state: st.session_state.all_entries = []
