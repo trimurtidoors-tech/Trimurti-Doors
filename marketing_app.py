@@ -5,6 +5,8 @@ from datetime import datetime
 from streamlit_js_eval import get_geolocation
 
 st.set_page_config(page_title="Trimurti Marketing Tracker", layout="wide")
+
+# कनेक्शन करताना नाव देणे गरजेचे आहे (उदा. "marketing")
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 AGENTS = {"Dhananjay": "789", "Jitesh": "101"}
@@ -25,27 +27,23 @@ if not st.session_state.marketing_logged_in:
 else:
     st.markdown(f"### नमस्ते, {st.session_state.agent_display_name}! 🙏")
     
+    # लोकेशनसाठी फंक्शन
+    loc = get_geolocation()
+    
     tab1, tab2 = st.tabs(["➕ New Visit", "📝 Updates"])
 
     with tab1:
-        # लोकेशन मिळवण्यासाठी सुरक्षित पद्धत
-        loc = get_geolocation()
-        
         with st.form("visit_form", clear_on_submit=True):
             c_name = st.text_input("Customer Name")
             c_mob = st.text_input("Mobile No.")
             c_addr = st.text_area("Address")
             purpose = st.selectbox("Purpose", ["New Inquiry", "Follow-up", "Order"])
             
-            st.info("सूचना: फॉर्म भरण्यापूर्वी मोबाईलचे GPS चालू असल्याची खात्री करा.")
-            
             submit = st.form_submit_button("SUBMIT DATA")
             
             if submit:
-                # 'KeyError' टाळण्यासाठी इथे चेक लावला आहे
                 if loc and 'coords' in loc:
-                    lat = loc['coords'].get('latitude')
-                    lon = loc['coords'].get('longitude')
+                    lat, lon = loc['coords'].get('latitude'), loc['coords'].get('longitude')
                     map_link = f"https://www.google.com/maps?q={lat},{lon}"
                     
                     visit_data = pd.DataFrame([{
@@ -56,21 +54,23 @@ else:
                         "Location": map_link
                     }])
                     try:
+                        # ttl=0 म्हणजे डेटा थेट शीटमधून वाचणे
                         df_existing = conn.read(ttl=0)
                         df_updated = pd.concat([df_existing, visit_data], ignore_index=True)
                         conn.update(data=df_updated)
-                        st.success("डेटा आणि लोकेशन यशस्वीरित्या सेव्ह झाले!")
-                        st.balloons()
-                    except Exception as e: st.error(f"Error: {e}")
+                        st.success("डेटा सेव्ह झाला!")
+                    except Exception as e: 
+                        st.error(f"Error: {e}")
+                        st.info("टीप: Secrets मध्ये spreadsheet हेडर आणि शीटवर 'Editor' परमिशन असल्याची खात्री करा.")
                 else:
-                    st.error("❌ लोकेशन सापडले नाही! कृपया ब्राउझरला लोकेशनची परवानगी द्या आणि GPS चालू करा.")
+                    st.error("कृपया लोकेशन 'Allow' करा.")
 
     with tab2:
         try:
             df_leads = conn.read(ttl=0)
             agent_leads = df_leads[df_leads['Agent'] == st.session_state.agent_display_name]
             st.data_editor(agent_leads, use_container_width=True, hide_index=True)
-        except: st.info("अजून कोणतीही एन्ट्री केलेली नाही.")
+        except: st.info("डेटा उपलब्ध नाही.")
 
     if st.button("Logout"):
         st.session_state.marketing_logged_in = False
