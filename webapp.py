@@ -24,7 +24,7 @@ def save_rates(rates):
     with open(RATES_FILE, "w") as f: json.dump(rates, f)
 
 # ४. युजर लॉगिन (Password: Dhananjay-789, Admin-123)
-USERS = {"Dhananjay": "789", "Admin": "123", "Abhijit": "123", "Krushna": "123"}
+USERS = {"Dhananjay": "789", "Admin": "123"}
 
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'all_entries' not in st.session_state: st.session_state.all_entries = []
@@ -76,9 +76,18 @@ else:
             })
             st.rerun()
 
-    # ९. बिलिंग कॅल्क्युलेशन
+    # ९. एडिटेबल बिलिंग टेबल (EDIT & DELETE Feature)
     if st.session_state.all_entries:
-        st.table(st.session_state.all_entries)
+        st.markdown("### 📋 Edit or Delete Items")
+        df_entries = pd.DataFrame(st.session_state.all_entries)
+        
+        # data_editor मुळे युजर थेट बदल करू शकतो किंवा ओळ उडवू शकतो
+        edited_df = st.data_editor(df_entries, num_rows="dynamic", use_container_width=True)
+        
+        # बदललेले आकडे पुन्हा कॅल्क्युलेट करणे
+        edited_df['Total'] = edited_df['SqFt'] * edited_df['Qty'] * edited_df['Rate']
+        st.session_state.all_entries = edited_df.to_dict('records')
+        
         sub_total = sum(i['Total'] for i in st.session_state.all_entries)
         gst_amt = round((sub_total * 18) / 100, 2)
         
@@ -111,11 +120,11 @@ else:
                 st.success("Data successfully saved!")
             except Exception as e: st.error(f"Sync Error: {e}")
 
-            # १०-ब: पीडीएफ जनरेशन (Professional T&C)
+            # १०-ब: पीडीएफ जनरेशन
             pdf = FPDF(); pdf.add_page(); pdf.set_font("Arial", 'B', 16)
             pdf.cell(190, 10, "TRIMURTI DOORS WORLD", 0, 1, 'C')
             pdf.set_font("Arial", '', 9)
-            pdf.cell(190, 5, "Plot no. C-4/5, shendra MIDC, Chhatrapati Sambhaji Nagar, Maharashtra", 0, 1, 'C')
+            pdf.cell(190, 5, "Plot no. C-4/5, shendra MIDC, Chhatrapati Sambhaji Nagar, MS", 0, 1, 'C')
             pdf.ln(2); pdf.set_font("Arial", 'B', 14); pdf.cell(190, 10, "QUOTATION", 1, 1, 'C')
             
             pdf.ln(5); pdf.set_font("Arial", '', 10)
@@ -137,7 +146,6 @@ else:
                 pdf.cell(w_list[7], 8, str(i['W2']), 1); pdf.cell(w_list[8], 8, str(i['SqFt']), 1)
                 pdf.cell(w_list[9], 8, str(i['Rate']), 1); pdf.cell(w_list[10], 8, f"{i['Total']:,.2f}", 1, 1, 'R')
             
-            # बिलिंग समरी
             pdf.ln(5); pdf.set_font("Arial", 'B', 10)
             pdf.cell(150, 7, "Subtotal Amount:", 0, 0, 'R'); pdf.cell(40, 7, f"{sub_total:,.2f}", 0, 1, 'R')
             pdf.cell(150, 7, "GST (18%):", 0, 0, 'R'); pdf.cell(40, 7, f"{gst_amt:,.2f}", 0, 1, 'R')
@@ -147,16 +155,14 @@ else:
             pdf.set_font("Arial", 'B', 12); pdf.set_text_color(200, 0, 0)
             pdf.cell(150, 10, "GRAND TOTAL BALANCE:", 0, 0, 'R'); pdf.cell(40, 10, f"Rs. {grand_total:,.2f}", 0, 1, 'R')
             
-            # व्यावसायिक अटी आणि शर्ती
             pdf.ln(5); pdf.set_text_color(0, 0, 0); pdf.set_font("Arial", 'BU', 9)
             pdf.cell(190, 7, "Terms & Conditions:", 0, 1, 'L')
             pdf.set_font("Arial", '', 8)
-            pdf.cell(190, 5, "* This quotation is valid for 7 days only; please confirm your order within this period.", 0, 1, 'L')
+            pdf.cell(190, 5, "* This quotation is valid for 7 days only.", 0, 1, 'L')
             pdf.cell(190, 5, "* 18% GST is applicable on the total amount.", 0, 1, 'L')
-            pdf.cell(190, 5, "* Transportation charges are extra and will be applicable as per actuals.", 0, 1, 'L')
-            pdf.cell(190, 5, "* Additional charges apply for customized designs and customized colors.", 0, 1, 'L')
+            pdf.cell(190, 5, "* Transportation charges are extra as per actuals.", 0, 1, 'L')
+            pdf.cell(190, 5, "* Additional charges apply for customized designs and colors.", 0, 1, 'L')
             
-            # संपर्क माहिती
             pdf.ln(5); pdf.set_font("Arial", 'B', 9)
             pdf.cell(190, 5, "Contact Us: 8888467733 | 9921587713 | 8669194545", 0, 1, 'C')
             
