@@ -5,3 +5,4 @@ streamlit-js-eval
 openpyxl
 gspread
 google-auth
+pandas
