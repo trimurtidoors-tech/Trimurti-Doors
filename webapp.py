@@ -124,7 +124,7 @@ else:
             pdf = FPDF(); pdf.add_page(); pdf.set_font("Arial", 'B', 16)
             pdf.cell(190, 10, "TRIMURTI DOORS WORLD", 0, 1, 'C')
             pdf.set_font("Arial", '', 9)
-            pdf.cell(190, 5, "Plot no. C-4/5, shendra MIDC, Chhatrapati Sambhaji Nagar, MS", 0, 1, 'C')
+            pdf.cell(190, 5, "Plot no. C-4/5, shendra MIDC, Chhatrapati Sambhaji Nagar, Maharashtra-431154", 0, 1, 'C')
             pdf.ln(2); pdf.set_font("Arial", 'B', 14); pdf.cell(190, 10, "QUOTATION", 1, 1, 'C')
             
             pdf.ln(5); pdf.set_font("Arial", '', 10)
