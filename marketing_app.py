@@ -7,11 +7,20 @@ from streamlit_js_eval import get_geolocation
 # १. पेज सेटअप
 st.set_page_config(page_title="Trimurti Marketing Master", layout="wide")
 
-# २. गुगल शीट कनेक्शन (सर्वात सोपी पद्धत)
-# टीप: स्ट्रीमलिट आपोआप Secrets मधील [connections.gsheets] शोधतो.
-conn = st.connection("gsheets", type=GSheetsConnection)
+# २. गुगल शीट कनेक्शन (एरर टाळण्यासाठी सुधारित पद्धत)
+# येथे आपण 'spreadsheet' लिंक थेट secrets मधून वाचून कोडमध्ये देत आहोत
+try:
+    conn = st.connection(
+        "gsheets", 
+        type=GSheetsConnection, 
+        credentials=st.secrets["service_account"],
+        spreadsheet=st.secrets["spreadsheet"]
+    )
+except Exception as e:
+    st.error(f"कन्फिगरेशन एरर: {e}")
+    st.stop()
 
-# ३. एजंट लिस्ट आणि लॉगिन
+# ३. लॉगिन आणि एजंट लिस्ट
 AGENTS = {"Dhananjay": "789", "Jitesh": "101"}
 AGENT_FULL_NAMES = {"Dhananjay": "Dhananjay Pakhre", "Jitesh": "Jitesh Krishnan"}
 
@@ -31,8 +40,6 @@ if not st.session_state.marketing_logged_in:
             st.error("चुकीचा आयडी किंवा पासवर्ड!")
 else:
     st.markdown(f"### नमस्ते, {st.session_state.agent_display_name}! 🙏")
-    
-    # लोकेशन मिळवणे
     loc = get_geolocation()
     
     tab1, tab2 = st.tabs(["➕ नवीन नोंद (Create)", "🛠️ रेकॉर्ड्स मॅनेज करा (Update/Delete)"])
@@ -40,7 +47,6 @@ else:
     # --- CREATE ---
     with tab1:
         with st.form("visit_form", clear_on_submit=True):
-            st.subheader("व्हिजिट डिटेल्स भरा")
             c_name = st.text_input("Customer Name")
             c_mob = st.text_input("Mobile No.")
             c_addr = st.text_area("Address")
@@ -52,7 +58,7 @@ else:
                     lat, lon = loc['coords'].get('latitude'), loc['coords'].get('longitude')
                     map_link = f"https://www.google.com/maps?q={lat},{lon}"
                     
-                    new_data = pd.DataFrame([{
+                    new_row = pd.DataFrame([{
                         "Date": datetime.now().strftime("%Y-%m-%d"),
                         "Agent": st.session_state.agent_display_name,
                         "Customer": c_name, "Mobile": f"'{c_mob}", "Address": c_addr,
@@ -61,43 +67,32 @@ else:
                     }])
                     try:
                         existing_df = conn.read(ttl=0)
-                        updated_df = pd.concat([existing_df, new_data], ignore_index=True)
+                        updated_df = pd.concat([existing_df, new_row], ignore_index=True)
                         conn.update(data=updated_df)
-                        st.success("✅ डेटा यशस्वीरित्या सेव्ह झाला!")
+                        st.success("✅ डेटा सेव्ह झाला!")
                         st.balloons()
                     except Exception as e:
-                        st.error(f"Error: {e}")
+                        st.error(f"डेटा सेव्ह करताना एरर: {e}")
                 else:
-                    st.error("लोकेशन सापडले नाही. कृपया ब्राऊझरमध्ये लोकेशन 'Allow' करा.")
+                    st.error("लोकेशन सापडले नाही.")
 
-    # --- UPDATE / DELETE ---
+    # --- UPDATE/DELETE ---
     with tab2:
         try:
             full_df = conn.read(ttl=0)
             my_leads = full_df[full_df['Agent'] == st.session_state.agent_display_name].copy()
-            
             if not my_leads.empty:
-                st.info("बदल करण्यासाठी खालील टेबल वापरा आणि 'SAVE' दाबा:")
-                edited_df = st.data_editor(
-                    my_leads, 
-                    use_container_width=True, 
-                    num_rows="dynamic", 
-                    hide_index=True
-                )
-                
-                if st.button("💾 SAVE UPDATES"):
+                edited_df = st.data_editor(my_leads, use_container_width=True, num_rows="dynamic", hide_index=True)
+                if st.button("💾 SAVE CHANGES"):
                     try:
-                        other_agents_df = full_df[full_df['Agent'] != st.session_state.agent_display_name]
-                        final_df = pd.concat([other_agents_df, edited_df], ignore_index=True)
+                        other_df = full_df[full_df['Agent'] != st.session_state.agent_display_name]
+                        final_df = pd.concat([other_df, edited_df], ignore_index=True)
                         conn.update(data=final_df)
-                        st.success("✅ रेकॉर्ड्स अपडेट झाले!")
+                        st.success("✅ अपडेट यशस्वी!")
                         st.rerun()
-                    except Exception as e:
-                        st.error(f"Update Error: {e}")
-            else:
-                st.info("डेटा उपलब्ध नाही.")
-        except:
-            st.error("डेटा लोड करताना अडचण आली.")
+                    except Exception as e: st.error(f"अपडेट करताना एरर: {e}")
+            else: st.info("तुमचा डेटा नाही.")
+        except: st.error("डेटा लोड करता आला नाही.")
 
     if st.button("Logout"):
         st.session_state.marketing_logged_in = False
