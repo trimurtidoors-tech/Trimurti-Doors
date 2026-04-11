@@ -4,14 +4,9 @@ import pandas as pd
 from datetime import datetime
 from streamlit_js_eval import get_geolocation
 
-# १. पेज सेटिंग्ज
 st.set_page_config(page_title="Trimurti Marketing Tracker", layout="wide")
-
-# २. गुगल शीट कनेक्शन
-# टीप: खात्री करा की 'spreadsheet' की मध्ये नवीन शीटची लिंक आहे
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# ३. एजंट्सची माहिती
 AGENTS = {"Dhananjay": "789", "Jitesh": "101"}
 AGENT_FULL_NAMES = {"Dhananjay": "Dhananjay Pakhre", "Jitesh": "Jitesh Krishnan"}
 
@@ -26,27 +21,31 @@ if not st.session_state.marketing_logged_in:
             st.session_state.marketing_logged_in = True
             st.session_state.agent_display_name = AGENT_FULL_NAMES[u_input]
             st.rerun()
-        else: st.error("चुकीचा ID किंवा पासवर्ड!")
+        else: st.error("ID किंवा पासवर्ड चुकलाय!")
 else:
     st.markdown(f"### नमस्ते, {st.session_state.agent_display_name}! 🙏")
     
     tab1, tab2 = st.tabs(["➕ New Visit", "📝 Updates"])
 
     with tab1:
+        # लोकेशन मिळवण्यासाठी सुरक्षित पद्धत
+        loc = get_geolocation()
+        
         with st.form("visit_form", clear_on_submit=True):
             c_name = st.text_input("Customer Name")
             c_mob = st.text_input("Mobile No.")
             c_addr = st.text_area("Address")
-            purpose = st.selectbox("Purpose", ["New Inquiry", "Follow-up", "Payment"])
+            purpose = st.selectbox("Purpose", ["New Inquiry", "Follow-up", "Order"])
             
-            # --- लोकेशनसाठी नवीन बटण ---
-            st.info("खालील 'Get My Location' वर क्लिक करा आणि वर 'Allow' निवडा.")
-            # हे फंक्शन आता फॉर्मच्या आतून लोकेशन खेचून घेईल
-            loc = get_geolocation() 
+            st.info("सूचना: फॉर्म भरण्यापूर्वी मोबाईलचे GPS चालू असल्याची खात्री करा.")
             
-            if st.form_submit_button("SUBMIT VISIT"):
-                if loc:
-                    lat, lon = loc['coords']['latitude'], loc['coords']['longitude']
+            submit = st.form_submit_button("SUBMIT DATA")
+            
+            if submit:
+                # 'KeyError' टाळण्यासाठी इथे चेक लावला आहे
+                if loc and 'coords' in loc:
+                    lat = loc['coords'].get('latitude')
+                    lon = loc['coords'].get('longitude')
                     map_link = f"https://www.google.com/maps?q={lat},{lon}"
                     
                     visit_data = pd.DataFrame([{
@@ -56,22 +55,22 @@ else:
                         "Purpose": purpose, "Quotation_Sent": "No", "Follow_up_Date": "-", 
                         "Location": map_link
                     }])
-                    
                     try:
                         df_existing = conn.read(ttl=0)
                         df_updated = pd.concat([df_existing, visit_data], ignore_index=True)
                         conn.update(data=df_updated)
-                        st.success("डेटा सेव्ह झाला!")
-                    except Exception as e: st.error(f"Spreadsheet Error: {e}")
+                        st.success("डेटा आणि लोकेशन यशस्वीरित्या सेव्ह झाले!")
+                        st.balloons()
+                    except Exception as e: st.error(f"Error: {e}")
                 else:
-                    st.warning("कृपया लोकेशन मिळवण्यासाठी परवानगी द्या आणि पुन्हा प्रयत्न करा.")
+                    st.error("❌ लोकेशन सापडले नाही! कृपया ब्राउझरला लोकेशनची परवानगी द्या आणि GPS चालू करा.")
 
     with tab2:
         try:
             df_leads = conn.read(ttl=0)
             agent_leads = df_leads[df_leads['Agent'] == st.session_state.agent_display_name]
-            st.data_editor(agent_leads, use_container_width=True)
-        except: st.error("शीट लोड होऊ शकली नाही. कृपया Secrets तपासा.")
+            st.data_editor(agent_leads, use_container_width=True, hide_index=True)
+        except: st.info("अजून कोणतीही एन्ट्री केलेली नाही.")
 
     if st.button("Logout"):
         st.session_state.marketing_logged_in = False
