@@ -6,13 +6,11 @@ from streamlit_js_eval import get_geolocation
 # १. पेज सेटअप
 st.set_page_config(page_title="Trimurti Marketing Master", layout="wide")
 
-# २. गुगल शीट कॉन्फिगरेशन (Public Link)
-# टीप: तुमची शीट 'Anyone with link can edit' असणे आवश्यक आहे.
-SHEET_ID = "1F8XY5rjNSA3sY_5aeHAm905KSMwiaoWBqMZsf1NxSjk"
+# २. गुगल शीट कॉन्फिगरेशन (Marketing Sheet साठी)
+# तुमची मार्केटिंग शीट उघडा आणि ब्राउझरमधील लिंकमधून हा ID बदला
+MARKETING_SHEET_ID = "1F8XY5rjNSA3sY_5aeHAm905KSMwiaoWBqMZsf1NxSjk"
 # डेटा वाचण्यासाठी CSV लिंक
-READ_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv"
-# डेटा सबमिट करण्यासाठी मूळ लिंक
-EDIT_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/edit"
+READ_URL = f"https://docs.google.com/spreadsheets/d/{MARKETING_SHEET_ID}/gviz/tq?tqx=out:csv"
 
 # ३. लॉगिन माहिती
 AGENTS = {"Dhananjay": "789", "Jitesh": "101"}
@@ -33,55 +31,54 @@ if not st.session_state.marketing_logged_in:
         else:
             st.error("चुकीचा आयडी किंवा पासवर्ड!")
 else:
-    st.markdown(f"### नमस्ते, {st.session_state.agent_display_name}! 🙏")
-    
-    # लोकेशन मिळवणे
-    loc = get_geolocation()
-    
-    tab1, tab2 = st.tabs(["➕ नवीन नोंद (Submit)", "📊 माझा डेटा (View Reports)"])
-
-    # --- TAB 1: डेटा सबमिट करण्यासाठी ---
-    with tab1:
-        st.subheader("नवीन व्हिजिट नोंदवा")
-        st.warning("सूचना: क्रेडेंशियल एररमुळे सध्या डेटा थेट शीटमध्ये भरण्यासाठी खालील बटण वापरा.")
-        
-        # गुगल शीटवर नेणारे बटण
-        st.link_button("📝 गुगल शीटमध्ये डेटा भरा", EDIT_URL, use_container_width=True)
-        
-        st.write("---")
-        st.write("तुमचे सध्याचे लोकेशन:")
-        if loc and 'coords' in loc:
-            lat, lon = loc['coords'].get('latitude'), loc['coords'].get('longitude')
-            st.success(f"Location Found: {lat}, {lon}")
-            st.write(f"Link: http://maps.google.com/?q={lat},{lon}")
-        else:
-            st.info("लोकेशन शोधत आहे... कृपया GPS सुरू ठेवा.")
-
-    # --- TAB 2: डेटा पाहण्यासाठी ---
-    with tab2:
-        try:
-            # CSV मधून डेटा वाचणे
-            df = pd.read_csv(READ_URL)
-            
-            # कॉलमची नावे स्वच्छ करणे (Spaces काढणे)
-            df.columns = df.columns.str.strip()
-            
-            # जर 'Agent' कॉलम असेल तरच फिल्टर करणे
-            if 'Agent' in df.columns:
-                my_leads = df[df['Agent'] == st.session_state.agent_display_name]
-                
-                if not my_leads.empty:
-                    st.success(f"तुमचे एकूण {len(my_leads)} रेकॉर्ड्स सापडले.")
-                    st.dataframe(my_leads, use_container_width=True, hide_index=True)
-                else:
-                    st.info("तुमच्या नावावर अजून कोणताही डेटा नाही.")
-            else:
-                st.error("शीटमध्ये 'Agent' नावाचा कॉलम सापडला नाही.")
-                st.write("उपलब्ध कॉलम्स:", list(df.columns))
-                
-        except Exception as e:
-            st.error(f"डेटा लोड करताना एरर आली: {e}")
-
-    if st.button("Logout"):
+    st.sidebar.markdown(f"**Agent:** {st.session_state.agent_display_name}")
+    if st.sidebar.button("Logout"):
         st.session_state.marketing_logged_in = False
         st.rerun()
+
+    loc = get_geolocation()
+    
+    tab1, tab2 = st.tabs(["➕ नवीन नोंद (Submit)", "📊 माझा रिपोर्ट (Reports)"])
+
+    # --- TAB 1: डेटा सबमिट करणे ---
+    with tab1:
+        st.subheader("व्हिजिटची माहिती भरा")
+        
+        with st.form("marketing_form", clear_on_submit=True):
+            c_name = st.text_input("Customer Name")
+            c_mob = st.text_input("Mobile No.")
+            c_addr = st.text_area("Address")
+            purpose = st.selectbox("Purpose", ["New Inquiry", "Follow-up", "Order"])
+            
+            # लोकेशन लिंक तयार करणे
+            map_link = "-"
+            if loc and 'coords' in loc:
+                lat, lon = loc['coords'].get('latitude'), loc['coords'].get('longitude')
+                map_link = f"https://www.google.com/maps?q={lat},{lon}"
+                st.success("📍 लोकेशन सापडले आहे!")
+            
+            submit = st.form_submit_button("डेटा सेव्ह करा")
+            
+            if submit:
+                # आपण क्रेडेंशियल्सऐवजी डेटा सबमिट करण्यासाठी गुगल शीटची 'Edit Link' वापरणार आहोत
+                # किंवा सोपा पर्याय म्हणून सध्या येथे एक मेसेज देऊ:
+                st.warning("नोंद करण्यासाठी खालील 'Direct Entry' बटण वापरा (PEM एरर टाळण्यासाठी):")
+                st.link_button("🚀 शीटमध्ये एंट्री करा", f"https://docs.google.com/spreadsheets/d/{MARKETING_SHEET_ID}/edit", use_container_width=True)
+
+    # --- TAB 2: डेटा पाहणे ---
+    with tab2:
+        try:
+            # थेट CSV लिंकवरून डेटा वाचणे (यात PEM एरर येत नाही)
+            df = pd.read_csv(READ_URL)
+            df.columns = df.columns.str.strip() # नावे स्वच्छ करणे
+            
+            if 'Agent' in df.columns:
+                my_data = df[df['Agent'] == st.session_state.agent_display_name]
+                if not my_data.empty:
+                    st.dataframe(my_data, use_container_width=True, hide_index=True)
+                else:
+                    st.info("तुमच्या नावावर अजून डेटा नाही.")
+            else:
+                st.error("शीटमध्ये 'Agent' नावाचा कॉलम मिळाला नाही.")
+        except Exception as e:
+            st.error(f"डेटा लोड एरर: {e}")
