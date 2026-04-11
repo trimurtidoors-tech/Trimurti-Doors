@@ -11,7 +11,7 @@ st.set_page_config(page_title="Trimurti Marketing Tracker", layout="wide")
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 # ३. एजंट्सची माहिती
-AGENTS = {"Dhananjay": "789", "Sales1": "101", "Sales2": "102"}
+AGENTS = {"Dhananjay": "789", "Jeetesh": "123", "Sales2": "102"}
 
 if 'marketing_logged_in' not in st.session_state:
     st.session_state.marketing_logged_in = False
